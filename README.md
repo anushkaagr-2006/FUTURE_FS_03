@@ -90,7 +90,7 @@ Verdant Coffee Co. is a complete rebrand of Starbucks, reimagined as a sustainab
 - Firebase (Backend)
 
 **AI Tools:**
-- Adobe Firefly / Gemini for logo generation
+- Adobe Firefly for logo generation
 - Unsplash for product images
 
 ---
