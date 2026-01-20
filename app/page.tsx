@@ -42,6 +42,7 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [showCartModal, setShowCartModal] = useState(false);
+  const [activeDiscount, setActiveDiscount] = useState<{type: 'free-drink' | 'dollar-off', amount: number} | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -202,6 +203,29 @@ useEffect(() => {
 };
 const removeFromCart = (productId: string) => {
   setCart(prev => prev.filter(item => item.id !== productId));
+};
+
+const getDiscountedTotal = (): { original: string, discount: string, final: string } => {
+  const originalTotal = parseFloat(getCartTotal());
+  let discountAmount = 0;
+  
+  if (activeDiscount) {
+    if (activeDiscount.type === 'free-drink') {
+      // Find most expensive item in cart
+      const maxPrice = Math.max(...cart.map(item => item.price));
+      discountAmount = maxPrice;
+    } else if (activeDiscount.type === 'dollar-off') {
+      discountAmount = Math.min(activeDiscount.amount, originalTotal);
+    }
+  }
+  
+  const finalTotal = Math.max(0, originalTotal - discountAmount);
+  
+  return {
+    original: originalTotal.toFixed(2),
+    discount: discountAmount.toFixed(2),
+    final: finalTotal.toFixed(2)
+  };
 };
 
 const updateQuantity = (productId: string, newQuantity: number) => {
@@ -388,24 +412,25 @@ const updateQuantity = (productId: string, newQuantity: number) => {
             <div className="space-y-3 mt-6">
               <button
                 onClick={async () => {
-                  if (user.rewardsPoints >= 100) {
-                    const { auth } = await import('@/lib/firebase');
-                    const { redeemPoints } = await import('@/lib/firebase');
-                    
-                    if (auth.currentUser) {
-                      const result = await redeemPoints(auth.currentUser.uid, 100);
-                      if (result.success) {
-                        setUser(prev => prev ? { 
-                          ...prev, 
-                          rewardsPoints: result.newTotal ?? 0 
-                        } : null);
-                        alert('🎉 100 points redeemed! Enjoy your free drink!');
-                      }
-                    }
-                  } else {
-                    alert('❌ You need 100 points for a free drink. Keep shopping!');
-                  }
-                }}
+  if (user.rewardsPoints >= 100) {
+    const { auth } = await import('@/lib/firebase');
+    const { redeemPoints } = await import('@/lib/firebase');
+    
+    if (auth.currentUser) {
+      const result = await redeemPoints(auth.currentUser.uid, 100);
+      if (result.success) {
+        setUser(prev => prev ? { 
+          ...prev, 
+          rewardsPoints: result.newTotal ?? 0 
+        } : null);
+        setActiveDiscount({ type: 'free-drink', amount: 7.25 }); // Max drink price
+        alert('🎉 100 points redeemed!\n\nYou have 1 FREE DRINK!\nAdd any drink to cart and checkout - the most expensive drink will be free!');
+      }
+    }
+  } else {
+    alert('❌ You need 100 points for a free drink. Keep shopping!');
+  }
+}}
                 className="w-full bg-white text-[#2C3D2F] px-6 py-2 rounded-full hover:bg-opacity-90 text-sm font-medium"
               >
                 Redeem 100pts → Free Drink
@@ -413,24 +438,25 @@ const updateQuantity = (productId: string, newQuantity: number) => {
               
               <button
                 onClick={async () => {
-                  if (user.rewardsPoints >= 500) {
-                    const { auth } = await import('@/lib/firebase');
-                    const { redeemPoints } = await import('@/lib/firebase');
-                    
-                    if (auth.currentUser) {
-                      const result = await redeemPoints(auth.currentUser.uid, 500);
-                      if (result.success) {
-                        setUser(prev => prev ? { 
-                          ...prev, 
-                          rewardsPoints: result.newTotal ?? 0 
-                        } : null);
-                        alert('🎉 500 points redeemed! $10 discount applied!');
-                      }
-                    }
-                  } else {
-                    alert('❌ You need 500 points for $10 off. Current: ' + user.rewardsPoints);
-                  }
-                }}
+  if (user.rewardsPoints >= 500) {
+    const { auth } = await import('@/lib/firebase');
+    const { redeemPoints } = await import('@/lib/firebase');
+    
+    if (auth.currentUser) {
+      const result = await redeemPoints(auth.currentUser.uid, 500);
+      if (result.success) {
+        setUser(prev => prev ? { 
+          ...prev, 
+          rewardsPoints: result.newTotal ?? 0 
+        } : null);
+        setActiveDiscount({ type: 'dollar-off', amount: 10 });
+        alert('🎉 500 points redeemed!\n\nYou have $10 OFF your next order!\nCheckout to apply the discount!');
+      }
+    }
+  } else {
+    alert('❌ You need 500 points for $10 off. Current: ' + user.rewardsPoints);
+  }
+}}
                 className="w-full bg-white text-[#2C3D2F] px-6 py-2 rounded-full hover:bg-opacity-90 text-sm font-medium"
               >
                 Redeem 500pts → $10 Off
@@ -561,13 +587,47 @@ const updateQuantity = (productId: string, newQuantity: number) => {
           </div>
 
           <div className="border-t pt-4">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-lg font-semibold">Total:</span>
-              <span className="text-2xl font-bold text-[#2C3D2F]">${getCartTotal()}</span>
-            </div>
+  {activeDiscount && (
+    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+      <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
+        🎁 Active Reward
+      </div>
+      <div className="text-sm text-green-600">
+        {activeDiscount.type === 'free-drink' 
+          ? '1 Free Drink (most expensive item)'
+          : `$${activeDiscount.amount} Off`
+        }
+      </div>
+    </div>
+  )}
+  
+  <div className="space-y-2 mb-4">
+    {activeDiscount && (
+      <>
+        <div className="flex justify-between text-gray-600">
+          <span>Subtotal:</span>
+          <span>${getDiscountedTotal().original}</span>
+        </div>
+        <div className="flex justify-between text-green-600 font-semibold">
+          <span>Discount:</span>
+          <span>-${getDiscountedTotal().discount}</span>
+        </div>
+      </>
+    )}
+    <div className="flex justify-between items-center">
+      <span className="text-lg font-semibold">Total:</span>
+      <span className="text-2xl font-bold text-[#2C3D2F]">
+        ${activeDiscount ? getDiscountedTotal().final : getCartTotal()}
+      </span>
+    </div>
+  </div>
+  
             <button 
   onClick={async () => {
-    const total = parseFloat(getCartTotal());
+  const totals = getDiscountedTotal();
+  const total = activeDiscount ? parseFloat(totals.final) : parseFloat(getCartTotal());
+  const originalTotal = parseFloat(totals.original);
+  const savedAmount = activeDiscount ? parseFloat(totals.discount) : 0;
     
     if (user) {
       try {
@@ -584,6 +644,8 @@ const updateQuantity = (productId: string, newQuantity: number) => {
               ...prev, 
               rewardsPoints: result.newTotal ?? 0 
             } : null);
+            // Clear discount after use
+setActiveDiscount(null);
             
             // Clear cart
             setCart([]);
@@ -591,7 +653,11 @@ const updateQuantity = (productId: string, newQuantity: number) => {
             
             // Show success message
             setTimeout(() => {
-              alert(`🎉 Order Placed Successfully!\n\nTotal: $${total}\n✨ You earned ${result.pointsAdded} points!\n\nNew Points Balance: ${result.newTotal} points`);
+              alert(`🎉 Order Placed Successfully!\n\n${
+  activeDiscount 
+    ? `Original: $${originalTotal}\nDiscount: -$${savedAmount}\nTotal Paid: $${total}`
+    : `Total: $${total}`
+}\n✨ You earned ${result.pointsAdded} points!\n\nNew Points Balance: ${result.newTotal} points`);
             }, 100);
           } else {
             setCart([]);
